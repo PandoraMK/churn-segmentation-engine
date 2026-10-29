@@ -6,7 +6,7 @@ import numpy as np
 import os
 
 app = FastAPI(
-    title="FNB Multi-Model Churn & Segmentation Engine",
+    title="Multi-Model Churn & Segmentation Engine",
     description="API supporting multi-model inference across Logistic Regression, Random Forest, XGBoost, and k-Means.",
     version="2.0"
 )
