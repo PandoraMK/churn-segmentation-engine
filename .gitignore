@@ -1,0 +1,10 @@
+# Ignore python byte code and environment files
+__pycache__/
+*.pyc
+.env
+venv/
+
+# Ignore raw data files if they exceed GitHub file limits
+data/*.csv
+
+# Optional: Ignore heavy binary model files if using Git LFS, or commit small ones (.pkl)
