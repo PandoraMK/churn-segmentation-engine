@@ -74,7 +74,7 @@ if st.button("Run Churn Prediction & Segmentation", type="primary"):
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.metric(label="Churn Probability", value=f"{churn_prob:.2%}", delta="High Risk" if churn_prob > 0.5 else "Low Risk", delta_inverse=True)
+        st.metric(label="Churn Probability", value=f"{churn_prob:.2%}", delta="High Risk" if churn_prob > 0.5 else "Low Risk")
     with col2:
         st.metric(label="Predicted Status", value="Will Churn" if churn_pred == 1 else "Retained")
     with col3:

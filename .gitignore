@@ -8,3 +8,4 @@ venv/
 data/*.csv
 
 # Optional: Ignore heavy binary model files if using Git LFS, or commit small ones (.pkl)
+deployment token.txt

@@ -1,4 +1,4 @@
-# FNB Churn Prediction & Customer Segmentation Engine
+#Churn Prediction & Customer Segmentation Engine
 
 [![Python 3.9](https://img.shields.io/badge/python-3.9-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-green.svg)](https://fastapi.tiangolo.com/)
@@ -9,7 +9,7 @@ A modular, production-ready machine learning backend providing real-time custome
 
 ---
 
-## ystem Architecture & Workflow
+## system Architecture & Workflow
 
 The pipeline is engineered following strict software design and data engineering principles, separating data ingestion, preprocessing, multi-model training, artifact serialization, and API inference.
 
@@ -26,38 +26,36 @@ The pipeline is engineered following strict software design and data engineering
 
 ## Installation & Local Setup
 
-### **1. Clone the Repository**
+### 1. Clone the Repository**
 ```bash
 git clone [https://github.com/PandoraMK/churn-segmentation-engine.git](https://github.com/PandoraMK/churn-segmentation-engine.git)
-cd churn-segmentation-engine
-
-### **2. Create and Activate Virtual Environment
-'''bash
+```
+### 2. Create and Activate Virtual Environment
+```bash
 conda create -n py39 python=3.9 -y
 conda activate py39
-
-### **3. Install Dependencies
-''' bash pip install -r requirements.txt
-
+```
+### 3. Install Dependencies
+``` bash
+ pip install -r requirements.txt
+```
 ---
 
 ## Running the Pipeline & API
 ** Step 1: Train Models and Generate Artifacts
 Run the training pipeline script to preprocess data, train all classifiers and the k-Means clusterer, and serialize artifacts into the models/ directory:
-'''bash 
+```bash 
 python pipeline.py
+```
 
 ** Step 2: Launch the FastAPI Server
 Start the Uvicorn server with hot reloading enabled:
-'''bash
+```bash
 uvicorn app:app --reload
+```
 
 ** Step 3: Test Inference via Client Script
 In a separate terminal window, run the test client script to send a structured customer payload to your API:
-'''bash
+```bash
 python predict.py
-
-
-
-
-
+```
