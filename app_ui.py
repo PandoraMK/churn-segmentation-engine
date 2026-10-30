@@ -3,6 +3,9 @@ import pandas as pd
 import joblib
 import numpy as np
 import plotly.express as px
+import os          # <--- Make sure this is here
+import sqlite3     # <--- Make sure this is here
+import os
 
 # Page Configuration
 st.set_page_config(page_title="Customer Churn Prediction Engine", page_icon="⚡", layout="wide")
