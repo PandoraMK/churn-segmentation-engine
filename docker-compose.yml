@@ -38,11 +38,10 @@ services:
 
   consumer:
     build: .
-    container_name: churn_kafka_consumer
-    volumes:
-      - ./models:/app/models
-    environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
     command: python consumer.py
+    volumes:
+      - .:/app   # <--- This maps your local project folder into the container
     depends_on:
       - kafka
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092

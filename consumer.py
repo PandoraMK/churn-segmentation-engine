@@ -1,58 +1,95 @@
-import os
 import json
+import sqlite3
+from datetime import datetime
 import joblib
+import numpy as np
 import pandas as pd
 from kafka import KafkaConsumer
 
-# 1. Load Model Artifacts Once at Startup
-print("[INFO] Loading production models into memory for event streaming...")
+# 1. Initialize SQLite Database Connection & Table
+DB_NAME = "churn_predictions.db"
+
+def init_db():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS predictions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT,
+            customer_id INTEGER,
+            churn_probability REAL,
+            churn_prediction INTEGER,
+            cluster_segment INTEGER,
+            raw_payload TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+    print(f"[INFO] Local SQLite database '{DB_NAME}' initialized successfully.")
+
+init_db()
+
+# 2. Load Model Artifacts
+print("[INFO] Loading production model artifacts...")
 model = joblib.load("models/churn_engine_xgb.pkl")
 scaler = joblib.load("models/churn_engine_scaler.pkl")
 kmeans = joblib.load("models/churn_engine_kmeans.pkl")
 
+continuous_cols = ["CreditScore", "Age", "Tenure", "Balance", "EstimatedSalary"]
 feature_columns = [
-    "CreditScore", "Age", "Tenure", "Balance", 
-    "NumOfProducts", "HasCrCard", "IsActiveMember", 
-    "EstimatedSalary", "Geography_France", "Geography_Germany", "Geography_Spain", 
+    "CreditScore", "Age", "Tenure", "Balance", "NumOfProducts", 
+    "HasCrCard", "IsActiveMember", "EstimatedSalary", 
+    "Geography_France", "Geography_Germany", "Geography_Spain", 
     "Gender_Female", "Gender_Male"
 ]
-continuous_cols = ["CreditScore", "Age", "Tenure", "Balance", "EstimatedSalary"]
-
-# 2. Dynamic Bootstrap Servers (Reads from Docker environment or defaults to localhost)
-raw_servers = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
-bootstrap_servers = [s.strip() for s in raw_servers.split(",")]
-
-print(f"[INFO] Connecting Kafka consumer to brokers: {bootstrap_servers}")
 
 # 3. Initialize Kafka Consumer
+topic_name = 'customer-events'
 consumer = KafkaConsumer(
-    'customer-events',
-    bootstrap_servers=bootstrap_servers,
+    topic_name,
+    bootstrap_servers=['kafka:9092'],  # Use 'localhost:9092' if running outside Docker
     auto_offset_reset='latest',
     enable_auto_commit=True,
-    group_id='churn-inference-group',
+    group_id='churn-consumer-group',
     value_deserializer=lambda x: json.loads(x.decode('utf-8'))
 )
 
-print("[INFO] Churn prediction event consumer active and listening to topic: 'customer-events'...")
+print(f"[INFO] Listening for real-time events on topic '{topic_name}'...")
 
-# 4. Stream Processing Loop
-for message in consumer:
-    event_data = message.value
-    customer_id = event_data.get("CustomerId", "UNKNOWN")
-    
-    try:
-        input_data = pd.DataFrame([event_data])
-        input_data = input_data.reindex(columns=feature_columns, fill_value=0)
+# Database connection for the consumer loop
+db_conn = sqlite3.connect(DB_NAME, check_same_thread=False)
+db_cursor = db_conn.cursor()
+
+try:
+    for message in consumer:
+        event_data = message.value
+        customer_id = event_data.get("CustomerId", 0)
         
-        churn_prob = float(model.predict_proba(input_data)[0][1])
-        churn_pred = int(model.predict(input_data)[0])
+        # Prepare DataFrame for Inference
+        input_df = pd.DataFrame([event_data])
+        input_df = input_df.reindex(columns=feature_columns, fill_value=0)
         
-        scaled_continuous = input_data[continuous_cols].copy()
-        scaled_continuous[continuous_cols] = scaler.transform(scaled_continuous[continuous_cols])
-        cluster = int(kmeans.predict(scaled_continuous)[0])
+        # Run ML Inference
+        churn_prob = float(model.predict_proba(input_df)[0][1])
+        churn_pred = int(model.predict(input_df)[0])
         
-        print(f"[PROCESSED] Customer {customer_id} - Score: {churn_prob:.4f} | Cluster: {cluster}")
+        scaled_cont = input_df[continuous_cols].copy()
+        scaled_cont[continuous_cols] = scaler.transform(scaled_cont[continuous_cols])
+        cluster = int(kmeans.predict(scaled_cont.values)[0])
         
-    except Exception as e:
-        print(f"[ERROR] Failed to process event for customer {customer_id}: {e}")
+        # Log to Console
+        status_label = "WILL CHURN" if churn_pred == 1 else "RETAINED"
+        print(f"[CONSUMER] Customer {customer_id} | Churn Prob: {churn_prob:.2%} ({status_label}) | Cluster: #{cluster}")
+        
+        # Save to SQLite Database
+        timestamp = datetime.utcnow().isoformat()
+        db_cursor.execute("""
+            INSERT INTO predictions (timestamp, customer_id, churn_probability, churn_prediction, cluster_segment, raw_payload)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (timestamp, customer_id, churn_prob, churn_pred, cluster, json.dumps(event_data)))
+        db_conn.commit()
+
+except KeyboardInterrupt:
+    print("\n[INFO] Shutting down consumer worker...")
+finally:
+    db_conn.close()
