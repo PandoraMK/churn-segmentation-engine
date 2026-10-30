@@ -5,7 +5,7 @@ An event-driven streaming extension for the Churn Prediction Engine. This module
 ---
 
 ##System Architecture
-
+```text
 [ stream_producer.py ] ---> ( Kafka Topic: customer-events )
 │
 ▼
@@ -16,7 +16,7 @@ An event-driven streaming extension for the Churn Prediction Engine. This module
 │
 ▼
 [ Streamlit Dashboard / UI ]
-
+```
 
 ---
 
