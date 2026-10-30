@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import joblib
 import numpy as np
+import plotly.express as px
 
 # Page Configuration
 st.set_page_config(page_title="Customer Churn Prediction Engine", page_icon="⚡", layout="wide")
@@ -70,14 +71,86 @@ if st.button("Run Churn Prediction & Segmentation", type="primary"):
     scaled_cont[continuous_cols] = scaler.transform(scaled_cont[continuous_cols])
     cluster = int(kmeans.predict(scaled_cont)[0])
     
-    # Display Results
+    # Display Results Metrics
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.metric(label="Churn Probability", value=f"{churn_prob:.2%}", delta="High Risk" if churn_prob > 0.5 else "Low Risk")
+        st.metric(
+            label="Churn Probability", 
+            value=f"{churn_prob:.2%}", 
+            delta="High Risk" if churn_prob > 0.5 else "Low Risk"
+        )
     with col2:
         st.metric(label="Predicted Status", value="Will Churn" if churn_pred == 1 else "Retained")
     with col3:
         st.metric(label="Behavioral Cluster Segment", value=f"Cluster #{cluster}")
         
+    st.markdown("---")
+    
+    # Interactive Visualization: Customer Financial & Behavioral Profile Chart
+    st.subheader("📊 Customer Profile & Risk Indicators")
+    
+    chart_data = pd.DataFrame({
+        "Feature": ["Credit Score (scaled)", "Age (scaled)", "Tenure (Years)", "Balance ($10k)", "Products", "Salary ($10k)"],
+        "Value": [
+            credit_score / 850.0,
+            age / 100.0,
+            tenure / 10.0,
+            balance / 250000.0,
+            num_products / 4.0,
+            estimated_salary / 200000.0
+        ]
+    })
+    
+    fig = px.bar(
+        chart_data, 
+        x="Value", 
+        y="Feature", 
+        orientation="h",
+        title="Normalized Customer Feature Impact Vectors",
+        labels={"Value": "Normalized Magnitude (0 to 1)", "Feature": "Customer Attribute"},
+        color="Value",
+        color_continuous_scale="Tealgrn"
+    )
+    fig.update_layout(xaxis_range=[0, 1], height=350, margin=dict(l=20, r=20, t=40, b=20))
+    
+    st.plotly_chart(fig, use_container_width=True)
     st.success("Inference executed successfully via model artifacts!")
+
+    import os
+import sqlite3
+
+# --- Real-Time Pipeline Audit Logs Section ---
+st.markdown("---")
+st.subheader("📜 Real-Time Pipeline Audit Logs (Kafka & SQLite)")
+
+DB_PATH = "churn_predictions.db"
+
+if os.path.exists(DB_PATH):
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        log_df = pd.read_sql(
+            "SELECT timestamp, customer_id, churn_probability, churn_prediction, cluster_segment FROM predictions ORDER BY id DESC LIMIT 20", 
+            conn
+        )
+        conn.close()
+        
+        if not log_df.empty:
+            # Quick summary metrics for the streaming stream
+            col_l1, col_l2, col_l3 = st.columns(3)
+            col_l1.metric("Recent Logged Events", len(log_df))
+            col_l2.metric("Avg Churn Risk in Stream", f"{log_df['churn_probability'].mean():.2%}")
+            col_l3.metric("High-Risk Alerts Detected", int((log_df['churn_probability'] > 0.5).sum()))
+            
+            # Interactive data frame
+            st.dataframe(log_df, use_container_width=True)
+            
+            if st.button("🔄 Refresh Live Audit Logs"):
+                st.rerun()
+        else:
+            st.info("Database table is active, but no streaming predictions have been logged yet. Run your Kafka producer to push live events!")
+            
+    except Exception as e:
+        st.error(f"Error reading local audit database: {e}")
+else:
+    st.info(f"Audit database (`{DB_PATH}`) not found locally yet. Ensure your Kafka consumer container is running with the shared volume mapped.")
